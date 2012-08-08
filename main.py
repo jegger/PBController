@@ -106,7 +106,8 @@ class Controller():
             try:
                 server.prog_closed(prog_id, dbus_interface = 'org.PB.PBase')
             except dbus.exceptions.DBusException, e:
-                print e
+                print "failed to connect to pbase dbus", e
+        return False
     
     def load_pbase(self):
         '''Call over DBUS to PBase: load
@@ -132,9 +133,11 @@ class Controller():
                 
     def shutdown(self, reboot=False):
         '''This function calls shutdown on start over DBUS
+        This function also closes all running progs first.
         
         :param reboot: if rebooting after shutdown or not
         '''
+        self.stop_all_progs()
         server = self.bus.get_object('org.PB.start', '/start')
         server.shutdown(reboot, dbus_interface = 'org.PB.start')
         return False
@@ -245,7 +248,8 @@ class Prog():
         while self.threading:
             time.sleep(0.1)
             if not self.process.is_alive():
-                self.controller.prog_closed(self.prog_id)
+                gtk.timeout_add(1, self.controller.prog_closed, self.prog_id)
+                break
 
 class TUIOMultiplexer(object):
     '''This class is does multiplex the TUIO to differnet ports.
@@ -360,21 +364,21 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be closed
         '''
-        gtk.timeout_add(10,self.controller.close_prog,prog_id)
+        gtk.timeout_add(1,self.controller.stop_prog,prog_id)
         return
     
     @dbus.service.method('org.PB.PBController')
     def load_pbase(self):
         '''This function will load the PBase.
         '''
-        gtk.timeout_add(10,self.controller.load_pbase)
+        gtk.timeout_add(1,self.controller.load_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
     def unload_pbase(self):
         '''This function will unload the PBase.
         '''
-        gtk.timeout_add(10, self.controller.unload_pbase)
+        gtk.timeout_add(1, self.controller.unload_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -384,7 +388,7 @@ class DBusServer(dbus.service.Object):
         
         :param reboot: Indicates if the device should reboot or shutdown
         '''
-        gtk.timeout_add(10, self.controller.shutdown, reboot)
+        gtk.timeout_add(1, self.controller.shutdown, reboot)
         return
      
 DBusGMainLoop(set_as_default=True)
