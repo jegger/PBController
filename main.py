@@ -12,11 +12,13 @@ import subprocess
 from threading import Thread
 import gtk
 import dbus
+import sqlite3
 import dbus.service
+import socket
 from dbus.mainloop.glib import DBusGMainLoop
 #initialize thread support in gtk
-#gtk.threads_init()
-gtk.gdk.threads_init()
+gtk.threads_init()
+#gtk.gdk.threads_init()
 
 """
 PBController
@@ -30,31 +32,130 @@ yourself.
 """
 
 class Controller():
+    '''This is the controller class. It will start, stop progs and receive the
+    events when a prog is opened or closed. It is also handling the kwin desktop
+    switching when kwin is available. Without kwin only one prog can be open at
+    a time.
+    '''
+    kwin=False
+    progs={}
     def __init__(self):
+        print "PBController has started"
         #init dbus client
         self.bus = dbus.SessionBus()
     
-    def start_prog(self, prog_id):
-        pass
+    def open_prog(self, prog_id):
+        '''Open a particular prog.
+        
+        If Kwin is not available it will just launch one prog at a time.
+        Also it will not do any desktop switching.
+        
+        :param prog_id: id of prog which should be opened
+        '''
+        if self.kwin: #kwin stuff // multiple desktops
+            pass
+        else: #without kwin // a single desktop
+            if prog_id not in self.progs:
+                #if this is the first run since runtime make a new prog instance
+                self.progs[prog_id]=Prog(self, prog_id, self.get_path_from_db(prog_id), 
+                                         tuio.create_new_port(), ignore_region=(0.0,0.0,0.0,0.0))
+                if self.progs[prog_id].start():
+                    self.prog_opened(prog_id)
+            else:
+                #if this is not the first run, just start
+                if self.progs[prog_id].start():
+                    self.prog_opened(prog_id)
+        return False
     
-    def prog_started(self, prog_id):
-        pass
+    def prog_opened(self, prog_id):
+        '''Call over DBUS to PBase: prog_opened
+        
+        :param prog_id: id of prog which just opened
+        '''
+        server=self.try_reach_dbus_PBase()
+        if server: 
+            try:
+                server.prog_opened(prog_id, dbus_interface = 'org.PB.PBase')
+            except dbus.exceptions.DBusException, e:
+                print e
     
     def stop_prog(self, prog_id):
-        pass
+        '''This function kills/stops a prog.
+        
+        :param prog_id: prog_id of prog which should be killed/stopped
+        '''
+        PID=self.progs[prog_id].PID
+        os.system("kill "+str(PID))
+        return False
     
-    def prog_stopped(self, prog_id):
-        pass
+    def stop_all_progs(self):
+        for prog in self.progs: self.stop_prog(prog)
+        for prog in self.progs: self.progs[prog].threading=False
+    
+    def prog_closed(self, prog_id):
+        '''Call over DBUS to PBase: prog_closed
+        
+        :param prog_id: id of prog which just closed
+        '''
+        server=self.try_reach_dbus_PBase()
+        if server: 
+            try:
+                server.prog_closed(prog_id, dbus_interface = 'org.PB.PBase')
+            except dbus.exceptions.DBusException, e:
+                print e
     
     def load_pbase(self):
-        pass
+        '''Call over DBUS to PBase: load
+        '''
+        server=self.try_reach_dbus_PBase()
+        if server: 
+            try:
+                server.load(dbus_interface = 'org.PB.PBase')
+            except dbus.exceptions.DBusException, e:
+                print e
+        return False
     
     def unload_pbase(self):
-        pass
-    
+        '''Call over DBUS to PBase: unload
+        '''
+        server=self.try_reach_dbus_PBase()
+        if server: 
+            try:
+                server.unload(dbus_interface = 'org.PB.PBase')
+            except dbus.exceptions.DBusException, e:
+                print e
+        return False
+                
     def shutdown(self, reboot=False):
+        '''This function calls shutdown on start over DBUS
+        
+        :param reboot: if rebooting after shutdown or not
+        '''
         server = self.bus.get_object('org.PB.start', '/start')
         server.shutdown(reboot, dbus_interface = 'org.PB.start')
+        return False
+    
+    def get_path_from_db(self, prog_id):
+        '''This function gets the path to the prog.
+        
+        :param prog_id: id of the prog
+        '''
+        DB_connection = sqlite3.connect("../PBase/data/database.sqlite")
+        DB_cursor = DB_connection.cursor()
+        DB_cursor.execute("SELECT path FROM progs WHERE id = '%i'" %prog_id)
+        DB_connection.commit()
+        for row in DB_cursor: path=row[0]
+        DB_connection.close()
+        return path
+    
+    def try_reach_dbus_PBase(self):
+        try:
+            server = self.bus.get_object('org.PB.PBase', '/PBase')
+        except dbus.exceptions.DBusException:
+            print "Can not reach DBUS PBase"
+            return False
+        return server
+    
     
 class Prog():
     '''The Prog class will be instanced for every prog that will be running.
@@ -65,9 +166,9 @@ class Prog():
     :pram TUIOport: the port on which which the prog should listen to TUIO.
     Once the prog instance is created, you should not change the port unless 
     you are sure that you know what you are doing. That is because the
-    TUIOController will multiplex the to this port the next time this prog
-    gets opened also.
-    :prarm ignore_region: this ist the region on whiche the close button 
+    TUIOController will multiplex to this port the next time this prog
+    gets opened too.
+    :prarm ignore_region: this is the region on which the close button 
     could be placed. This means on this region do not recognize any touches.
     '''
     def __init__(self, controller, prog_id, path, TUIOport, ignore_region):
@@ -77,8 +178,9 @@ class Prog():
         self.TUIOport=TUIOport
         self.ignore_region=ignore_region #(0.395833, 0.9537, 0.604166, 1.0)
         self.PID=None #the PID will defined at runtime via the queue.
+        self.threading=True
     
-    def start(self):
+    def start(self, *kwargs):
         '''Starting the prog
         
         1. Create a queue for passing arguments between processes
@@ -97,7 +199,7 @@ class Prog():
         q = multiprocessing.Queue()
         
         #create and start the process
-        self.process=multiprocessing.Process(target=self.start, args=(q,))
+        self.process=multiprocessing.Process(target=self.__process, args=(q,))
         self.process.start()
         
         #create the thread
@@ -120,10 +222,11 @@ class Prog():
         This is a internal function. Don't EVER call this function on your own! 
         call it only via start()
         '''
-        command=("python",self.path,"-k","-p", "test:tuio,0.0.0.0:"+str(self.port),"-c","postproc:ignore:["+self.ignore_region+"]")
+        command=("python","../progs/"+self.path+"/main.py","-k","-p", "test:tuio,0.0.0.0:"+str(self.TUIOport),"-c","postproc:ignore:["+str(self.ignore_region)+"]")
         pr=subprocess.Popen(command)
         q.put(pr.pid) #put the PID thrugh the queue
         pr.wait() #wait until the subprocess is finished
+
     
     def __check_activity(self):
         '''This function get transformed into the thread. It checks
@@ -137,7 +240,79 @@ class Prog():
         while self.threading:
             time.sleep(0.1)
             if not self.process.is_alive():
-                self.controller.prog_stopped(self.app_id)
+                self.controller.prog_closed(self.prog_id)
+
+class TUIOMultiplexer(object):
+    '''This class is does multiplex the TUIO to differnet ports.
+    '''
+    ports={}
+    stop_loop=False
+    def __init__(self, *kwagrs):
+        '''The init function will start the loop
+        Also it will add the first port to the loop (PBSwitch->3334)
+        '''
+        #always multiplex for PBSwitch 3334!
+        self.add_port(3334)
+        
+        t = Thread(target=self.__loop)
+        t.start()
+                
+    def __loop(self):
+        '''The main loop for multiplexing.
+        This function is launched as a thread from the init form this class.
+        Do not call this function on you own!
+        '''
+        hostin = "127.0.0.1"
+        portin = 3333
+        cont = True
+        while cont and not self.stop_loop:
+            try:
+                sin = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sin.bind((hostin,portin))
+                cont = False
+            except:
+                print "TUIOMultiplexer: Port error. retry..."
+                time.sleep(2)
+                cont = True
+        data = 1
+        while data and not self.stop_loop:
+            data = sin.recv(1024*1024)
+            for i in self.ports:
+                try:
+                    self.ports[i].send(data)
+                except:
+                    pass
+    
+    def create_new_port(self):
+        '''Create a new port for a new prog.
+        This is needed if a prog is lunched the first time since runtime.
+        The function will return you the new port for.
+        
+        :return port: Returns the port for this prog
+        '''
+        #get highest used port
+        high=max(port for port in self.ports)
+        #add new port that is +1 higher
+        self.add_port(high+1)
+        return high+1
+    
+    def add_port(self, port):
+        '''Add a port to the multiplexer
+        
+        :param port: port to add
+        '''
+        if port not in self.ports:
+            self.ports[port] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.ports[port].connect(("127.0.0.1",port))
+    
+    def remove_port(self, port):
+        '''Remove a port from the multiplexer
+    
+        :param port: port to remove
+        '''
+        if port in self.ports:
+            self.ports.pop(port)
+tuio=TUIOMultiplexer()
         
 class DBusServer(dbus.service.Object):
     '''DBus server from PBController.
@@ -159,7 +334,7 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be opened
         '''
-        self.controller.start_prog(prog_id)
+        gtk.timeout_add(10, self.controller.open_prog, prog_id)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -169,21 +344,21 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be closed
         '''
-        self.controller.stop_prog(prog_id)
+        gtk.timeout_add(10,self.controller.close_prog,prog_id)
         return
     
     @dbus.service.method('org.PB.PBController')
     def load_pbase(self):
         '''This function will load the PBase.
         '''
-        self.controller.load_pbase()
+        gtk.timeout_add(10,self.controller.load_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
     def unload_pbase(self):
         '''This function will unload the PBase.
         '''
-        self.controller.unload_pbase()
+        gtk.timeout_add(10, self.controller.unload_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -193,7 +368,8 @@ class DBusServer(dbus.service.Object):
         
         :param reboot: Indicates if the device should reboot or shutdown
         '''
-        return self.controller.shutdown(reboot)
+        gtk.timeout_add(10, self.controller.shutdown, reboot)
+        return
      
 DBusGMainLoop(set_as_default=True)
 controller=Controller()
@@ -202,4 +378,8 @@ try:
     gtk.main()
 except KeyboardInterrupt:
     #stop everything safely
+    tuio.stop_loop=True
+    controller.stop_all_progs()
     raise
+except Exception, e:
+    print e

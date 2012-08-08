@@ -8,7 +8,6 @@
 import subprocess
 import os
 from threading import Thread
-from operator import itemgetter
 import time
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
@@ -53,30 +52,34 @@ class Start():
                  {"path":"../PBController", "filename":"main.py", "PID":None, "run":True},
                  {"path":"../PBase", "filename":"main.py", "PID":None, "run":True}]
     
-    def _launch(self, path, filename):
+    def _launch(self, path, filename, index):
         '''This is the function that actually launches any of the scripts.
         While launching it stores the PID (for killing the process later)
         int the list. This function is always a thread.
         '''
-        while self.script_list[map(itemgetter('path'), self.script_list).index(path)]["run"]:
+        while self.script_list[index]["run"]:
             os.chdir(path)
             pr=subprocess.Popen(("python",filename))
-            self.script_list[map(itemgetter('path'), self.script_list).index(path)]["PID"]=pr.pid
+            self.script_list[index]["PID"]=pr.pid
+            print path, pr.pid
             pr.wait()
     
     def start(self):
         '''This function makes a loop trough the list and makes a thread for
         every script.
         '''
-        for script in self.script_list:
-            t = Thread(target=self._launch, args=(script["path"], script["filename"]))
+        for index, script in enumerate(self.script_list):
+            t = Thread(target=self._launch, args=(script["path"], script["filename"], index))
             t.start()
+            time.sleep(0.1)
     
     def stop(self):
         '''This function kills all the running scripts.
         '''
+        print self.script_list
         for script in self.script_list:
             script["run"]=False
+            print "kill: ", script["path"], script["PID"]
             os.system("kill "+str(script["PID"]))
         raise SystemExit(0)
     
@@ -109,5 +112,4 @@ st.start()
 try:
     gtk.main()
 except KeyboardInterrupt:
-    #stop everything safely
     raise  
