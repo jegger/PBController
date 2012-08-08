@@ -48,9 +48,9 @@ class Start():
     PBSwitch=True
     PID_PBUpdater=None
     #list with all the scripts
-    script_list=[{"path":"../PBUpdater", "filename":"main.py", "PID":None, "run":True},
-                 {"path":"../PBController", "filename":"main.py", "PID":None, "run":True},
-                 {"path":"../PBase", "filename":"main.py", "PID":None, "run":True}]
+    script_list=[{"path":"../PBUpdater", "filename":"main.py", "PID":None, "run":True, "port":None},
+                 {"path":"../PBController", "filename":"main.py", "PID":None, "run":True, "port":None},
+                 {"path":"../PBase", "filename":"main.py", "PID":None, "run":True, "port":3335}]
     
     def _launch(self, path, filename, index):
         '''This is the function that actually launches any of the scripts.
@@ -59,9 +59,11 @@ class Start():
         '''
         while self.script_list[index]["run"]:
             os.chdir(path)
-            pr=subprocess.Popen(("python",filename))
+            if self.script_list[index]["port"]!=None:
+                pr=subprocess.Popen(("python",filename, "-k","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
+            else:
+                pr=subprocess.Popen(("python",filename))
             self.script_list[index]["PID"]=pr.pid
-            print path, pr.pid
             pr.wait()
     
     def start(self):
@@ -76,10 +78,8 @@ class Start():
     def stop(self):
         '''This function kills all the running scripts.
         '''
-        print self.script_list
         for script in self.script_list:
             script["run"]=False
-            print "kill: ", script["path"], script["PID"]
             os.system("kill "+str(script["PID"]))
         raise SystemExit(0)
     

@@ -59,12 +59,12 @@ class Controller():
                 #if this is the first run since runtime make a new prog instance
                 self.progs[prog_id]=Prog(self, prog_id, self.get_path_from_db(prog_id), 
                                          tuio.create_new_port(), ignore_region=(0.0,0.0,0.0,0.0))
-                if self.progs[prog_id].start():
-                    self.prog_opened(prog_id)
+            if self.progs[prog_id].start():
+                self.prog_opened(prog_id)
             else:
-                #if this is not the first run, just start
-                if self.progs[prog_id].start():
-                    self.prog_opened(prog_id)
+                #if start fails: add pbase port again
+                tuio.add_port(3335)
+                
         return False
     
     def prog_opened(self, prog_id):
@@ -94,9 +94,13 @@ class Controller():
     
     def prog_closed(self, prog_id):
         '''Call over DBUS to PBase: prog_closed
+        Stop TUIO port for this prog
+        Start TUIO for PBase
         
         :param prog_id: id of prog which just closed
         '''
+        #start tuio for pbase
+        tuio.add_port(3335)
         server=self.try_reach_dbus_PBase()
         if server: 
             try:
@@ -222,11 +226,12 @@ class Prog():
         This is a internal function. Don't EVER call this function on your own! 
         call it only via start()
         '''
-        command=("python","../progs/"+self.path+"/main.py","-k","-p", "test:tuio,0.0.0.0:"+str(self.TUIOport),"-c","postproc:ignore:["+str(self.ignore_region)+"]")
-        pr=subprocess.Popen(command)
+        command=("python","main.py","-k","-p", 
+                 "test:tuio,0.0.0.0:"+str(self.TUIOport),"-c",
+                 "postproc:ignore:["+str(self.ignore_region)+"]")
+        pr=subprocess.Popen(command, cwd="../progs/"+self.path+"/")
         q.put(pr.pid) #put the PID thrugh the queue
         pr.wait() #wait until the subprocess is finished
-
     
     def __check_activity(self):
         '''This function get transformed into the thread. It checks
@@ -253,6 +258,9 @@ class TUIOMultiplexer(object):
         '''
         #always multiplex for PBSwitch 3334!
         self.add_port(3334)
+        #start tuio for pbase
+        self.add_port(3335)
+        print "added, ", 3335
         
         t = Thread(target=self.__loop)
         t.start()
@@ -301,7 +309,14 @@ class TUIOMultiplexer(object):
         
         :param port: port to add
         '''
+        #close all ports, without the one that should added
+        ports_to_remove=[]
+        for porti in self.ports:
+            if porti!=3334:
+                ports_to_remove.append(porti)
+        for i in ports_to_remove: self.remove_port(i)
         if port not in self.ports:
+            print "START TUIO:", port
             self.ports[port] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.ports[port].connect(("127.0.0.1",port))
     
@@ -311,6 +326,7 @@ class TUIOMultiplexer(object):
         :param port: port to remove
         '''
         if port in self.ports:
+            print "STOP TUIO:", port
             self.ports.pop(port)
 tuio=TUIOMultiplexer()
         
@@ -334,7 +350,7 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be opened
         '''
-        gtk.timeout_add(10, self.controller.open_prog, prog_id)
+        gtk.timeout_add(1, self.controller.open_prog, prog_id)
         return
     
     @dbus.service.method('org.PB.PBController')
