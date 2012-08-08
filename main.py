@@ -11,6 +11,7 @@ import multiprocessing
 import subprocess
 from threading import Thread
 import gtk
+import dbus
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 #initialize thread support in gtk
@@ -30,7 +31,8 @@ yourself.
 
 class Controller():
     def __init__(self):
-        pass
+        #init dbus client
+        self.bus = dbus.SessionBus()
     
     def start_prog(self, prog_id):
         pass
@@ -50,8 +52,9 @@ class Controller():
     def unload_pbase(self):
         pass
     
-    def shutdown(self):
-        pass
+    def shutdown(self, reboot=False):
+        server = self.bus.get_object('org.PB.start', '/start')
+        server.shutdown(reboot, dbus_interface = 'org.PB.start')
     
 class Prog():
     '''The Prog class will be instanced for every prog that will be running.
@@ -157,6 +160,7 @@ class DBusServer(dbus.service.Object):
         :param prog_id: id of the prog which should be opened
         '''
         self.controller.start_prog(prog_id)
+        return
     
     @dbus.service.method('org.PB.PBController')
     def close_prog(self, prog_id):
@@ -166,18 +170,21 @@ class DBusServer(dbus.service.Object):
         :param prog_id: id of the prog which should be closed
         '''
         self.controller.stop_prog(prog_id)
+        return
     
     @dbus.service.method('org.PB.PBController')
     def load_pbase(self):
         '''This function will load the PBase.
         '''
         self.controller.load_pbase()
+        return
     
     @dbus.service.method('org.PB.PBController')
     def unload_pbase(self):
         '''This function will unload the PBase.
         '''
         self.controller.unload_pbase()
+        return
     
     @dbus.service.method('org.PB.PBController')
     def shutdown(self, reboot=False):
@@ -186,12 +193,11 @@ class DBusServer(dbus.service.Object):
         
         :param reboot: Indicates if the device should reboot or shutdown
         '''
-        self.controller.shutdown(reboot)
+        return self.controller.shutdown(reboot)
      
 DBusGMainLoop(set_as_default=True)
 controller=Controller()
 myservice = DBusServer(controller)
-
 try:
     gtk.main()
 except KeyboardInterrupt:
