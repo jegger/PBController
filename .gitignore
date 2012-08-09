@@ -30,3 +30,7 @@ pip-log.txt
 
 #Mr Developer
 .mr.developer.cfg
+._kivyXwm.py
+images/._bg.png
+images/._switch_normal.png
+images/._switch_pressed.png

@@ -1,0 +1,64 @@
+#: import Window kivy.core.window.Window
+<Switcher>:
+    open_switch_button: open_switch_button
+    close_switch_button: close_switch_button
+    background: background
+    background_image: background_image
+    progs_layout: progs_layout
+    Widget:
+        id: background
+        Image:
+            id: background_image
+            source: 'images/bg.png'
+            height: 150
+            size_hint_y: None
+            allow_stretch: True
+            keep_ratio: False
+            width: Window.width
+    Button:
+        id: open_switch_button
+        size: 50, 50
+        background_normal: 'images/switch_normal.png'
+        background_pressed: 'images/switch_pressed.png'
+        on_press: root.switch_open=True
+    Button:
+        id: close_switch_button
+        size: 50, 50
+        pos: Window.width-100, 50
+        background_normal: 'images/switch_normal.png'
+        background_pressed: 'images/switch_pressed.png'
+        on_press: root.switch_open=False
+    BoxLayout:
+        id: progs_layout
+        orientation: 'horizontal'
+        y: 27
+        spacing: 20
+        x: 20
+        height: 100
+        width: (len(progs_layout.children)*100)
+
+[ButtonItem@Button]:
+    background_normal: ctx.path
+    background_down: ctx.path
+    border:0, 0, 0, 0
+    close_prog_button: close_prog_button
+    Label:
+        id: label
+        text: ctx.name
+        width: 100
+        height: 20
+        text_size: self.size
+        center_x: root.center_x
+        y: 10
+        shorten: True
+        halign: 'center'
+        font_size: 10
+        color: 0,0,0,1
+        bold: True
+    Button:
+        id: close_prog_button
+        border:0, 0, 0, 0
+        background_normal: 'images/close_prog.png'
+        background_down: 'images/close_prog.png'
+        size: 35,35
+        pos: root.x+root.width-self.width, root.y+root.height-self.height

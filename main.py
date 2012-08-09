@@ -58,7 +58,10 @@ class Controller():
             if prog_id not in self.progs:
                 #if this is the first run since runtime make a new prog instance
                 self.progs[prog_id]=Prog(self, prog_id, self.get_path_from_db(prog_id), 
-                                         tuio.create_new_port(), ignore_region=(0.0,0.0,0.0,0.0))
+                                         tuio.create_new_port(), ignore_region=(0.9479166667,
+                                                                                0.9074074074,
+                                                                                0.9739583333,
+                                                                                0.9537037037))
             if self.progs[prog_id].start():
                 self.prog_opened(prog_id)
             else:
@@ -68,7 +71,7 @@ class Controller():
         return False
     
     def prog_opened(self, prog_id):
-        '''Call over DBUS to PBase: prog_opened
+        '''Call over DBUS to PBase&PBSwitch: prog_opened
         
         :param prog_id: id of prog which just opened
         '''
@@ -78,7 +81,15 @@ class Controller():
                 server.prog_opened(prog_id, dbus_interface = 'org.PB.PBase')
             except dbus.exceptions.DBusException, e:
                 print e
-    
+        try:
+            server = self.bus.get_object('org.PB.PBSwitch', '/PBSwitch')
+            try:
+                server.prog_opened(prog_id, dbus_interface = 'org.PB.PBSwitch')
+            except dbus.exceptions.DBusException, e:
+                print "in controller main", e
+        except Exception, e:
+            print e
+        
     def stop_prog(self, prog_id):
         '''This function kills/stops a prog.
         
@@ -107,6 +118,14 @@ class Controller():
                 server.prog_closed(prog_id, dbus_interface = 'org.PB.PBase')
             except dbus.exceptions.DBusException, e:
                 print "failed to connect to pbase dbus", e
+        try:
+            server = self.bus.get_object('org.PB.PBSwitch', '/PBSwitch')
+            try:
+                server.prog_closed(prog_id, dbus_interface = 'org.PB.PBSwitch')
+            except dbus.exceptions.DBusException, e:
+                print "in controller main", e
+        except Exception, e:
+            print e
         return False
     
     def load_pbase(self):

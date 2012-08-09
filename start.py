@@ -50,7 +50,8 @@ class Start():
     #list with all the scripts
     script_list=[{"path":"../PBUpdater", "filename":"main.py", "PID":None, "run":True, "port":None},
                  {"path":"../PBController", "filename":"main.py", "PID":None, "run":True, "port":None},
-                 {"path":"../PBase", "filename":"main.py", "PID":None, "run":True, "port":3335}]
+                 {"path":"../PBase", "filename":"main.py", "PID":None, "run":True, "port":3335},
+                 {"path":"../PBController", "filename":"switch.py", "PID":None, "run":True, "port":3334}]
     
     def _launch(self, path, filename, index):
         '''This is the function that actually launches any of the scripts.
@@ -60,7 +61,10 @@ class Start():
         while self.script_list[index]["run"]:
             os.chdir(path)
             if self.script_list[index]["port"]!=None:
-                pr=subprocess.Popen(("python",filename, "-k","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
+                if self.script_list[index]["filename"]=="switch.py":
+                    pr=subprocess.Popen(("python",filename, "-w","--size=50x50","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
+                else:
+                    pr=subprocess.Popen(("python",filename, "-k","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
             else:
                 pr=subprocess.Popen(("python",filename))
             self.script_list[index]["PID"]=pr.pid
@@ -103,6 +107,7 @@ class DBusServer(dbus.service.Object):
         
         :param reboot: Indicates if the device should reboot or shutdown
         '''
+        print "SHUTDOWN"
         return self.start.stop()
         
 DBusGMainLoop(set_as_default=True)
