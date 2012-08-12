@@ -47,6 +47,7 @@ class Start():
     PBase=True
     PBSwitch=True
     PID_PBUpdater=None
+    
     #list with all the scripts
     script_list=[{"path":"../PBUpdater", "filename":"main.py", "PID":None, "run":True, "port":None},
                  {"path":"../PBController", "filename":"main.py", "PID":None, "run":True, "port":None},
@@ -62,23 +63,82 @@ class Start():
             os.chdir(path)
             if self.script_list[index]["port"]!=None:
                 if self.script_list[index]["filename"]=="switch.py":
+                    #for the PBSwitch
                     pr=subprocess.Popen(("python",filename, "-w","--size=50x50","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
                 else:
+                    #for PBase
                     pr=subprocess.Popen(("python",filename, "-k","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
             else:
                 pr=subprocess.Popen(("python",filename))
             self.script_list[index]["PID"]=pr.pid
+            print "STARTED:", self.script_list[index]["path"], self.script_list[index]["filename"], self.script_list[index]["PID"]
+            
+            #try waiting until window opened
+            time.sleep(0.5)
+            
+            #special window operations
+            if self.script_list[index]["filename"]=="switch.py":
+                #for switch (above)
+                self.modify_window(self.script_list[index]["PID"], True, "keepAbove")
+            else:
+                #for pbase
+                self.modify_window(self.script_list[index]["PID"], True, "keepBelow")
+            
             pr.wait()
+    
+    def modify_window(self, pid, everydesktop, args):
+        '''This functions modifies the window if wmctrl exists
+        
+        :param pid: the pid of the window
+        :param everydesktop: bool: if window should appear on every desktop
+        :param args: the args for adding in wmctrl: above or below
+        '''
+        if not self.wmiface:
+            return
+        
+        #get window id
+        proc = subprocess.Popen('wmiface findNormalWindows "" "" "" "" '+str(pid)+' false', shell=True, stdout=subprocess.PIPE)
+        proc.wait()
+        window_id=None
+        for line in proc.stdout:
+            window_id=line.replace("\n", "")
+        if window_id==None: 
+            print "Can not find window with PID:", pid
+            return
+        
+        #modify window with args
+        command='wmiface '+args+' '+window_id+' True'
+        pr=subprocess.Popen(command, shell=True)
+        pr.wait()
+        #modify window with desktop
+        if not everydesktop:
+            return
+        print window_id
+        command='wmiface setWindowDesktop '+window_id+' -1'
+        pr=subprocess.Popen(command, shell=True)
+        pr.wait()
+        
+    def cmd_exists(self, cmd):
+        '''checks if this command exists
+        '''
+        if len(os.popen(cmd).readlines())==0:
+            return False
+        else:
+            return True
     
     def start(self):
         '''This function makes a loop trough the list and makes a thread for
         every script.
         '''
+        #check for wmctrl
+        self.wmiface=self.cmd_exists("wmiface numberOfDesktops")
+        print self.wmiface
+        #loop trough scripts
         for index, script in enumerate(self.script_list):
             t = Thread(target=self._launch, args=(script["path"], script["filename"], index))
             t.start()
             time.sleep(0.1)
-    
+            
     def stop(self):
         '''This function kills all the running scripts.
         '''

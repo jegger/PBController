@@ -5,6 +5,7 @@
     background: background
     background_image: background_image
     progs_layout: progs_layout
+    pbase_button: pbase_button
     Widget:
         id: background
         Image:
@@ -28,6 +29,12 @@
         background_normal: 'images/switch_normal.png'
         background_pressed: 'images/switch_pressed.png'
         on_press: root.switch_open=False
+    Button:
+        id: pbase_button
+        size: 100,50 
+        text: "PBase"
+        pos: Window.width-250, 50
+        on_press: root.show_pbase()
     BoxLayout:
         id: progs_layout
         orientation: 'horizontal'

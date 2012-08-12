@@ -72,10 +72,21 @@ class Switcher(Widget):
         self.background.remove_widget(self.background_image)
         self.remove_widget(self.close_switch_button)
         self.remove_widget(self.progs_layout)
+        self.remove_widget(self.pbase_button)
         
         #init dbus client
         self.bus = dbus.SessionBus()
         
+        #try to fetch open running progs
+        server=self.try_reach_dbus_PBController()
+        if server:
+            try:
+                progs=server.get_open_progs(dbus_interface = 'org.PB.PBController')
+                for prog_id in progs:
+                    self.open_prog_list.append(int(prog_id))
+            except dbus.exceptions.DBusException, e:
+                print e
+            
         #actualize window after creation
         Clock.schedule_once(self.show_switch_button, 0)
     
@@ -141,6 +152,19 @@ class Switcher(Widget):
                 print e
         self.switch_open=False
     
+    def show_pbase(self, *kwargs):
+        '''This function gets called whenever the button PBase from the switch
+        gets touched. This will close the switch and call the function show_pbase
+        over D-Bus on PBController.
+        '''
+        server=self.try_reach_dbus_PBController()
+        if server: 
+            try:
+                server.show_pbase(dbus_interface = 'org.PB.PBController')
+            except dbus.exceptions.DBusException, e:
+                print e
+        self.switch_open=False
+        
     def _show_hide_switch(self, wid, open_switch):
         '''This function opens /show and close/hides the switch.
         You shouldn't call this function. Use instead the property switch_open.
@@ -157,6 +181,7 @@ class Switcher(Widget):
             self.remove_widget(self.open_switch_button)
             self.add_widget(self.close_switch_button)
             self.add_widget(self.progs_layout)
+            self.add_widget(self.pbase_button)
             
             prog_icons=[]
             for prog_id in self.open_prog_list:
@@ -178,6 +203,7 @@ class Switcher(Widget):
             self.add_widget(self.open_switch_button)
             self.remove_widget(self.close_switch_button)
             self.progs_layout.clear_widgets()
+            self.remove_widget(self.pbase_button)
             self.remove_widget(self.progs_layout)
     
     def actualize_window(self, *kwargs):
