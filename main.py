@@ -67,14 +67,16 @@ class Controller():
             self.switch_to_desktop(self.progs[prog_id].desktop)
             tuio.add_port(self.progs[prog_id].TUIOport)
         else:
-            #is a desktop free?
-            c=0
-            for prog in self.progs:
-                if self.progs[prog].desktop!=None:
-                    c+=1
-            if c>= self.get_number_of_desktops()-1:
-                self.prog_opening_failed(prog_id, "NoFreeDesktop")
-                return False
+            if self.kwin_is_available():
+                #is a desktop free?
+                c=0
+                for prog in self.progs:
+                    if self.progs[prog].desktop!=None:
+                        c+=1
+                if c>= self.get_number_of_desktops()-1:
+                    #all desktops are full
+                    self.prog_opening_failed(prog_id, "NoFreeDesktop")
+                    return False
             
             #if it is not running, try to start it & start tuio for prog
             tuio.add_port(self.progs[prog_id].TUIOport)
