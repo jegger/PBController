@@ -14,6 +14,7 @@ import gtk
 import dbus
 import sqlite3
 import dbus.service
+import signal
 import socket
 from dbus.mainloop.glib import DBusGMainLoop
 #initialize thread support in gtk
@@ -66,6 +67,15 @@ class Controller():
             self.switch_to_desktop(self.progs[prog_id].desktop)
             tuio.add_port(self.progs[prog_id].TUIOport)
         else:
+            #is a desktop free?
+            c=0
+            for prog in self.progs:
+                if self.progs[prog].desktop!=None:
+                    c+=1
+            if c>= self.get_number_of_desktops()-1:
+                self.prog_opening_failed(prog_id, "NoFreeDesktop")
+                return False
+            
             #if it is not running, try to start it & start tuio for prog
             tuio.add_port(self.progs[prog_id].TUIOport)
             if self.progs[prog_id].start():
@@ -84,19 +94,30 @@ class Controller():
         
         :param prog_id: id of prog which just opened
         '''
+        print "prog opened", prog_id
         server=self.try_reach_dbus_PBase()
-        if server: 
+        print "prog opened2", prog_id
+        if server:
+            print "prog opened2.1", prog_id
             try:
+                print "prog opened2.2", prog_id
                 server.prog_opened(prog_id, dbus_interface = 'org.PB.PBase')
+                print "prog opened2.3", prog_id
             except dbus.exceptions.DBusException, e:
-                print e
+                print "prog opened2.4", prog_id
+                print "dbus exception from main from pbcontroller:", e
+                print "prog opened2.5", prog_id
+        print "prog opened3", prog_id
         try:
             server = self.bus.get_object('org.PB.PBSwitch', '/PBSwitch')
+            print "prog opened4", prog_id
             try:
                 server.prog_opened(prog_id, dbus_interface = 'org.PB.PBSwitch')
             except dbus.exceptions.DBusException, e:
                 print "in controller main", e
+            print "prog opened4", prog_id
         except Exception, e:
+            print "prog opened5", prog_id
             print e
         
     def stop_prog(self, prog_id):
@@ -105,7 +126,12 @@ class Controller():
         :param prog_id: prog_id of prog which should be killed/stopped
         '''
         PID=self.progs[prog_id].PID
-        os.system("kill "+str(PID))
+        print "kill prog:", PID
+        try:
+            os.killpg(PID, signal.SIGTERM)
+        except:
+            os.system("kill "+str(PID))
+        os.system("kill -9 "+str(PID))
         return False
     
     def stop_all_progs(self):
@@ -139,6 +165,14 @@ class Controller():
         except Exception, e:
             print e
         return False
+    
+    def prog_opening_failed(self, prog_id, reason):
+        server=self.try_reach_dbus_PBase()
+        if server:
+            try:
+                server.prog_opening_failed(prog_id, reason, dbus_interface = 'org.PB.PBase')
+            except dbus.exceptions.DBusException, e:
+                print e
     
     def load_pbase(self):
         '''Call over DBUS to PBase: load pbase
@@ -206,7 +240,8 @@ class Controller():
         #fill the number in the list with None when a prog is there
         #example: desktops[None,2,3,4] (On desktop 1 is a prog running)
         for prog in self.progs:
-            desktops[desktops.index(self.progs[prog].desktop)]=None
+            if self.progs[prog].desktop!=None: #ignore progs which aren't active/ prog.desktop=None
+                desktops[desktops.index(self.progs[prog].desktop)]=None
         for i in desktops:
             if i != None: return i
     
@@ -237,8 +272,8 @@ class Controller():
         if self.kwin_is_available():
             proc = subprocess.Popen("wmiface numberOfDesktops", shell=True, stdout=subprocess.PIPE)
             proc.wait()
-            for line in proc.stdout: currentDesktop=int(line.rstrip())
-            return int(currentDesktop)
+            for line in proc.stdout: desktops=int(line.rstrip())
+            return int(desktops)
         
     def shutdown(self, reboot=False):
         '''This function calls shutdown on start over DBUS
@@ -283,7 +318,6 @@ class Controller():
             print "Can not reach DBUS PBase"
             return False
         return server
-    
     
 class Prog():
     '''The Prog class will be instanced for every prog that will be running.
@@ -338,7 +372,7 @@ class Prog():
         
         #receive PID from queue
         self.PID=q.get()
-        
+        print "Prog opened with PID of:", self.PID
         self.open=True
         return True
     
@@ -357,7 +391,8 @@ class Prog():
         command=("python","main.py","-k","-p", 
                  "test:tuio,0.0.0.0:"+str(self.TUIOport),"-c",
                  "postproc:ignore:["+str(self.ignore_region)+"]")
-        pr=subprocess.Popen(command, cwd="../progs/"+self.path+"/")
+        pr=subprocess.Popen(command, cwd="../progs/"+self.path+"/", stdout=subprocess.PIPE, 
+                                             preexec_fn=os.setsid)
         q.put(pr.pid) #put the PID thrugh the queue
         pr.wait() #wait until the subprocess is finished
     
@@ -371,7 +406,7 @@ class Prog():
         This thread will be stopped as soon: self.threading=False
         '''
         while self.threading:
-            time.sleep(0.1)
+            time.sleep(0.2)
             if not self.process.is_alive():
                 self.open=False
                 gtk.timeout_add(1, self.controller.prog_closed, self.prog_id)
@@ -419,7 +454,8 @@ class TUIOMultiplexer(object):
         data = 1
         while data and not self.stop_loop:
             data = sin.recv(1024*1024)
-            for i in self.active_ports:
+            copy_active_ports=self.active_ports
+            for i in copy_active_ports:
                 try:
                     self.active_ports[i].send(data)
                 except:
@@ -491,7 +527,9 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be opened
         '''
+        print "main controller: open prog"
         gtk.timeout_add(1, self.controller.open_prog, prog_id)
+        print "main controller: open prog after"
         return
     
     @dbus.service.method('org.PB.PBController')

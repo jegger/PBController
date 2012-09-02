@@ -6,12 +6,15 @@
     background_image: background_image
     progs_layout: progs_layout
     pbase_button: pbase_button
+    height: 150
+    y: Window.height-150
     Widget:
         id: background
         Image:
             id: background_image
             source: 'images/bg.png'
             height: 150
+            y: Window.height
             size_hint_y: None
             allow_stretch: True
             keep_ratio: False
@@ -19,13 +22,14 @@
     Button:
         id: open_switch_button
         size: 50, 50
+        pos: Window.width-100, Window.height-100
         background_normal: 'images/switch_normal.png'
         background_pressed: 'images/switch_pressed.png'
         on_press: root.switch_open=True
     Button:
         id: close_switch_button
         size: 50, 50
-        pos: Window.width-100, 50
+        pos: Window.width-100, Window.height-100
         background_normal: 'images/switch_normal.png'
         background_pressed: 'images/switch_pressed.png'
         on_press: root.switch_open=False
@@ -33,14 +37,14 @@
         id: pbase_button
         size: 100,50 
         text: "PBase"
-        pos: Window.width-250, 50
+        pos: Window.width-250, root.y+50
         on_press: root.show_pbase()
     BoxLayout:
         id: progs_layout
         orientation: 'horizontal'
-        y: 27
+        y: Window.height+25
         spacing: 20
-        x: 20
+        x: root.x+20
         height: 100
         width: (len(progs_layout.children)*100)
 

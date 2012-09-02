@@ -13,19 +13,7 @@ Witch the switch you are able to close progs and switch between them.
 Normally the switch can appear just as a close button in the upper right corner.
 You can deactivate the switch button in the settings. In this case you can only
 show the switch button by making a gesture. When you have a Probazaar account 
-you can also close progs from probazaar.ch remotely.
-
-XLib & touch converting
-~~~~~~~~~~~~~~~~~~~~~~
-This is kind a ugly solution.
-I would be glad if someone could rewrite/re-think this! 
-
-XLib is used for positioning the kivy switch window.
-Because the window is not fullscreen and not starting on pos:0,0 we have to
-re-write the touch handling and scale the touches up to the real screen size.
-Also we have to set the x:0,y:0 point of the touches to the position of the
-window.
-
+you can also close progs from probazaar.ch remotely. (via PBUpdater)
 '''
 #kivy
 from kivy.app import App
@@ -33,21 +21,15 @@ from kivy.uix.widget import Widget
 from kivy.support import install_gobject_iteration
 from kivy.clock import Clock
 from kivy.lang import Builder
-from kivy.properties import BooleanProperty, ListProperty
-from kivy.input.motionevent import MotionEvent
-from kivy.input.providers.tuio import TuioMotionEventProvider
+from kivy.properties import BooleanProperty
+from kivy.animation import Animation
+from kivy.core.window import Window
 #global
 from functools import partial
 import dbus.service
-import subprocess
 from dbus.mainloop.glib import DBusGMainLoop
 import sqlite3
 #local
-import kivyXwm
-
-#create GLOBAL variables
-wind_pos=(760,980) #position of the switch window
-wind_size=(400,100) #size of the switch window
 
 #load kv file
 Builder.load_file('switcher.kv')
@@ -57,7 +39,6 @@ class Switcher(Widget):
     the close button and all the switch uix widgets.
     '''
     switch_open=BooleanProperty(False)
-    window_pos_size=ListProperty((0,0,50,50))
     open_prog_list=[]
     prog_buttons={}
     def __init__(self, k_app, **kwargs):
@@ -66,7 +47,6 @@ class Switcher(Widget):
         
         #bind functions
         self.bind(switch_open=self._show_hide_switch)
-        self.bind(window_pos_size=self.actualize_window)
         
         #remove from kv creation
         self.background.remove_widget(self.background_image)
@@ -77,6 +57,10 @@ class Switcher(Widget):
         #init dbus client
         self.bus = dbus.SessionBus()
         
+        #preload animations
+        self.close_switch_animation=Animation(y=Window.height, duration=0.25, transition="in_circ")
+        self.close_switch_animation.bind(on_complete=self.close_animation_step1)
+        
         #try to fetch open running progs
         server=self.try_reach_dbus_PBController()
         if server:
@@ -86,18 +70,6 @@ class Switcher(Widget):
                     self.open_prog_list.append(int(prog_id))
             except dbus.exceptions.DBusException, e:
                 print e
-            
-        #actualize window after creation
-        Clock.schedule_once(self.show_switch_button, 0)
-    
-    def show_switch_button(self, *kwargs):
-        '''This button gets called a frame after the creation of the window.
-        We have to wait, cause only then we can repositionize the window
-        with XLib.
-        '''
-        self.screen_size=self.k_app.get_screen_size()
-        self.window_pos_size[0]=self.screen_size[0]-100
-        self.window_pos_size[1]=self.screen_size[1]-100
         
     def prog_opened(self, prog_id, *kwargs):
         '''This function gets called whenever a prog opens
@@ -173,47 +145,52 @@ class Switcher(Widget):
         :param open_switch: Bool, True:show-switch
         '''
         if open_switch:
-            self.window_pos_size=(0,
-                                 self.screen_size[1]-150,
-                                 self.screen_size[0],
-                                 150)
+            #stop close animation, if its running
+            self.close_switch_animation.stop(self.background_image)
+            
+            #add widgets for open switch
             self.background.add_widget(self.background_image)
             self.remove_widget(self.open_switch_button)
             self.add_widget(self.close_switch_button)
             self.add_widget(self.progs_layout)
             self.add_widget(self.pbase_button)
             
+            #fetch open progs icons
             prog_icons=[]
             for prog_id in self.open_prog_list:
                 name=self.get_prog_info(prog_id)
                 path=str("../data/icons/"+str(prog_id)+".png")
                 prog_icons.append({"path":path, "name":name, "prog_id":prog_id})
                 
+            #add open prog icons to layout
             for prog in prog_icons:
                 self.prog_buttons[prog_id]=Builder.template('ButtonItem', **prog)
                 self.prog_buttons[prog_id].bind(on_press=partial(self.open_prog, prog["prog_id"]))
                 self.prog_buttons[prog_id].close_prog_button.bind(on_press=partial(self.close_prog, prog["prog_id"]))
                 self.progs_layout.add_widget(self.prog_buttons[prog_id])
+            
+            #animate open switch
+            open_switch_animation=Animation(y=Window.height-150, duration=0.25, transition="out_circ")
+            open_switch_animation_progs=Animation(y=Window.height-123, duration=0.25, transition="out_circ")
+            open_switch_animation.start(self.background_image)
+            open_switch_animation_progs.start(self.progs_layout)
+            
         else:
-            self.window_pos_size=(self.screen_size[0]-100,
-                                 self.screen_size[1]-100,
-                                 50,
-                                 50)
-            self.background.remove_widget(self.background_image)
+            #animate close switch
+            self.close_switch_animation.start(self.background_image)
+            self.close_switch_animation.start(self.progs_layout)
+            
+            #remove widgets which belongs to the open switch
             self.add_widget(self.open_switch_button)
             self.remove_widget(self.close_switch_button)
             self.progs_layout.clear_widgets()
             self.remove_widget(self.pbase_button)
-            self.remove_widget(self.progs_layout)
     
-    def actualize_window(self, *kwargs):
-        '''This function gets trugh the bind on:
-        window_pos_size called. The function resizes the window.
+    def close_animation_step1(self, *kwargs):
+        '''Internal function. Gets called as soon the close animation finshed
         '''
-        self.k_app.actualize_window(x=self.window_pos_size[0], 
-                                     y=self.window_pos_size[1],
-                                     width=self.window_pos_size[2], 
-                                     height=self.window_pos_size[3])
+        self.background.remove_widget(self.background_image)
+        self.remove_widget(self.progs_layout)
     
     def try_reach_dbus_PBController(self):
         '''Int this function we try to reach the PBController via dbus.
@@ -284,99 +261,6 @@ class SwitchApp(App):
         switch=Switcher(k_app=self)
         DBusServer(switch=switch)          
         return switch
-        
-    def actualize_window(self, x=int, y=int, width=int, height=int):
-        '''This function actualizes the window pos and size over XLib
-        
-        :param x: x pos of window
-        :param y: y pos of window
-        :param width: width of window
-        :param height: height of window
-        '''
-        #check if arguments are passed, if not do not change
-        if x==int: x=wind_pos[0]
-        if y==int: y=wind_pos[1]
-        if width==int: width=wind_size[0]
-        if height==int: height=wind_size[1]
-        #repositionize/resize window over XLib
-        kivyXwm.repositionize(self.title, x, y, width, height)
-        #rewrite globals
-        global wind_pos
-        global wind_size
-        wind_pos=(x, y)
-        wind_size=(width, height)
-    
-    def get_screen_size(self):
-        '''This function returns the screen size.
-        
-        :return size: (height. width) as a tuple
-        '''
-        proc = subprocess.Popen("xrandr | grep '*'", shell=True, stdout=subprocess.PIPE)
-        proc.wait()
-        for line in proc.stdout:
-            height=int(line.split("x")[1].split(" ")[0])
-            width=int(line.split("x")[0].split(" ")[-1])
-        return (width, height)
-
-#################### Coordinate transformation / Window handling #############
-class Tuio2dCurMotionEvent(MotionEvent):
-    def __init__(self, device, id, args):
-        super(Tuio2dCurMotionEvent, self).__init__(device, id, args)
-
-    def depack(self, args):
-        self.is_touch = True
-        if len(args) < 5:
-            self.sx, self.sy = map(float, args[0:2])
-            self.profile = ('pos', )
-        elif len(args) == 5:
-            self.sx, self.sy, self.X, self.Y, self.m = map(float, args[0:5])
-            self.Y = -self.Y
-            self.profile = ('pos', 'mov', 'motacc')
-        else:
-            self.sx, self.sy, self.X, self.Y = map(float, args[0:4])
-            self.m, width, height = map(float, args[4:7])
-            self.Y = -self.Y
-            self.profile = ('pos', 'mov', 'motacc', 'shape')
-            if self.shape is None:
-                self.shape = ShapeRect()
-            self.shape.width = width
-            self.shape.height = height
-        self.sy = 1 - self.sy
-        super(Tuio2dCurMotionEvent, self).depack(args)
-
-    def scale_for_screen(self, w, h, p=None, rotation=0):
-        '''Scale position for the screen
-        '''
-        sx, sy = self.sx, self.sy
-        if rotation == 0:
-            self.x = sx * float(1920)
-            self.y = sy * float(1080)
-            self.x = self.x - float(wind_pos[0])
-            self.y = self.y - float(wind_pos[1])
-        elif rotation == 90:
-            sx, sy = sy, 1 - sx
-            self.x = sx * float(h)
-            self.y = sy * float(w)
-        elif rotation == 180:
-            sx, sy = 1 - sx, 1 - sy
-            self.x = sx * float(w)
-            self.y = sy * float(h)
-        elif rotation == 270:
-            sx, sy = 1 - sy, sx
-            self.x = sx * float(h)
-            self.y = sy * float(w)
-
-        if p:
-            self.z = self.sz * float(p)
-        if self.ox is None:
-            self.px = self.ox = self.x
-            self.py = self.oy = self.y
-            self.pz = self.oz = self.z
-
-        self.dx = self.x - self.px
-        self.dy = self.y - self.py
-        self.dz = self.z - self.pz
-TuioMotionEventProvider.register('/tuio/2Dcur', Tuio2dCurMotionEvent)  
     
 if __name__ == '__main__':
     SwitchApp().run()

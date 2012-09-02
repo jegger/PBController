@@ -12,7 +12,7 @@ import time
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 import gtk
-
+import signal 
 gtk.gdk.threads_init()
 
 '''
@@ -59,32 +59,60 @@ class Start():
         While launching it stores the PID (for killing the process later)
         int the list. This function is always a thread.
         '''
+        #create watchdog to watch over the loop. If the loop gets executed more 
+        #then three times in a row in less then 5seconds - close PBase suite
+        watchdog_start_time=time.time()
+        counter=0
+        
+        #start the python script. In case of a crash start again until script_list<item>.run=False
         while self.script_list[index]["run"]:
             os.chdir(path)
             if self.script_list[index]["port"]!=None:
                 if self.script_list[index]["filename"]=="switch.py":
                     #for the PBSwitch
-                    pr=subprocess.Popen(("python",filename, "-w","--size=50x50","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
+                    os.environ['KIVY_WINDOW'] = 'x11'
+                    pr=subprocess.Popen(["python", filename, "-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])], env=os.environ, stdout=subprocess.PIPE, 
+                                             preexec_fn=os.setsid)
+                    os.environ.pop('KIVY_WINDOW')
                 else:
                     #for PBase
                     pr=subprocess.Popen(("python",filename, "-k","-p", "test:tuio,0.0.0.0:"+str(self.script_list[index]["port"])))
             else:
                 pr=subprocess.Popen(("python",filename))
+            
+            #fetch PID fpr process
             self.script_list[index]["PID"]=pr.pid
             print "STARTED:", self.script_list[index]["path"], self.script_list[index]["filename"], self.script_list[index]["PID"]
             
-            #try waiting until window opened
-            time.sleep(0.5)
-            
+            start_time=time.time()
             #special window operations
             if self.script_list[index]["filename"]=="switch.py":
                 #for switch (above)
-                self.modify_window(self.script_list[index]["PID"], True, "keepAbove")
-            else:
+                while time.time()-start_time<10 and self.script_list[index]["run"]:
+                    if self.modify_window(self.script_list[index]["PID"], True, "keepAbove"):
+                        break
+                    time.sleep(3)
+            elif self.script_list[index]["filename"]=="main.py" and self.script_list[index]["path"]=="../PBase":
                 #for pbase
-                self.modify_window(self.script_list[index]["PID"], True, "keepBelow")
-            
+                while time.time()-start_time<10 and self.script_list[index]["run"]:
+                    if self.modify_window(self.script_list[index]["PID"], True, "keepBelow"):
+                        break
+                    time.sleep(2)
+            #wait (make synchronous) here until the script breaks somehow
             pr.wait()
+            
+            #set PID to False, because the process isn't running anymore
+            self.script_list[index]["PID"]=False
+            
+            #watchdog count up and check
+            counter+=1
+            if counter>=3:
+                if time.time()-watchdog_start_time<=10:
+                    self.stop()
+                    break
+                else:
+                    counter=0
+                    watchdog_start_time=time.time()
     
     def modify_window(self, pid, everydesktop, args):
         '''This functions modifies the window if wmctrl exists
@@ -94,7 +122,7 @@ class Start():
         :param args: the args for adding in wmctrl: above or below
         '''
         if not self.wmiface:
-            return
+            return False
         
         #get window id
         proc = subprocess.Popen('wmiface findNormalWindows "" "" "" "" '+str(pid)+' false', shell=True, stdout=subprocess.PIPE)
@@ -104,7 +132,7 @@ class Start():
             window_id=line.replace("\n", "")
         if window_id==None: 
             print "Can not find window with PID:", pid
-            return
+            return False
         
         #modify window with args
         command='wmiface '+args+' '+window_id+' True'
@@ -112,11 +140,11 @@ class Start():
         pr.wait()
         #modify window with desktop
         if not everydesktop:
-            return
-        print window_id
+            return True
         command='wmiface setWindowDesktop '+window_id+' -1'
         pr=subprocess.Popen(command, shell=True)
         pr.wait()
+        return True
         
     def cmd_exists(self, cmd):
         '''checks if this command exists
@@ -142,10 +170,15 @@ class Start():
     def stop(self):
         '''This function kills all the running scripts.
         '''
+        print "kill all scripts"
         for script in self.script_list:
             script["run"]=False
-            os.system("kill "+str(script["PID"]))
-        raise SystemExit(0)
+            print script["filename"], script["PID"]
+            if script["PID"]:
+                os.system("kill "+str(script["PID"]))
+                if script["filename"]=="switch.py":
+                    os.killpg(script["PID"], signal.SIGTERM)
+        gtk.main_quit()
     
 class DBusServer(dbus.service.Object):
     '''DBus server from PBase.
@@ -174,7 +207,4 @@ DBusGMainLoop(set_as_default=True)
 st=Start()
 myservice = DBusServer(st)
 st.start()
-try:
-    gtk.main()
-except KeyboardInterrupt:
-    raise  
+gtk.main()
