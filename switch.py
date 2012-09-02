@@ -153,7 +153,6 @@ class Switcher(Widget):
             self.remove_widget(self.open_switch_button)
             self.add_widget(self.close_switch_button)
             self.add_widget(self.progs_layout)
-            self.add_widget(self.pbase_button)
             
             #fetch open progs icons
             prog_icons=[]
@@ -170,12 +169,16 @@ class Switcher(Widget):
                 self.progs_layout.add_widget(self.prog_buttons[prog_id])
             
             #animate open switch
-            open_switch_animation=Animation(y=Window.height-150, duration=0.25, transition="out_circ")
+            self.open_switch_animation=Animation(y=Window.height-150, duration=0.25, transition="out_circ")
+            self.open_switch_animation.bind(on_complete=self.open_animation_step1)
             open_switch_animation_progs=Animation(y=Window.height-123, duration=0.25, transition="out_circ")
-            open_switch_animation.start(self.background_image)
+            self.open_switch_animation.start(self.background_image)
             open_switch_animation_progs.start(self.progs_layout)
             
         else:
+            #stop open animation
+            self.open_switch_animation.stop(self.background_image)
+            
             #animate close switch
             self.close_switch_animation.start(self.background_image)
             self.close_switch_animation.start(self.progs_layout)
@@ -186,6 +189,11 @@ class Switcher(Widget):
             self.progs_layout.clear_widgets()
             self.remove_widget(self.pbase_button)
     
+    def open_animation_step1(self, *kwargs):
+        '''Internal function. Gets called as soon the open animation finshed
+        '''
+        self.add_widget(self.pbase_button)
+        
     def close_animation_step1(self, *kwargs):
         '''Internal function. Gets called as soon the close animation finshed
         '''
