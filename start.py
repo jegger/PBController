@@ -20,6 +20,11 @@ Start
 =====
 In this file all which is done is launching and closing different elements of PB.
 
+What do I need?
+~~~~~~~~~~~~~~~
+- Kivy with core-x11 (transparent windows)
+- wmiface
+
 What does this script
 ~~~~~~~~~~~~~~~~~~~~~
 This script launches all the PB - elements. In case of a shutdown or reboot it 
