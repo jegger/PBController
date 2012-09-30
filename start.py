@@ -22,7 +22,9 @@ In this file all which is done is launching and closing different elements of PB
 
 What do I need?
 ~~~~~~~~~~~~~~~
-- Kivy with core-x11 (transparent windows)
+- Kivy branch core-x11 (transparent windows)
+--> clone from: https://github.com/jegger/kivy.git;
+---> install: sudo WITH_X11=1 python setup.py install
 - wmiface
 
 What does this script
