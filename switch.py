@@ -24,6 +24,7 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty
 from kivy.animation import Animation
 from kivy.core.window import Window
+from kivy.logger import Logger
 #global
 from functools import partial
 import dbus.service
@@ -53,6 +54,8 @@ class Switcher(Widget):
         self.remove_widget(self.close_switch_button)
         self.remove_widget(self.progs_layout)
         self.remove_widget(self.pbase_button)
+        self.remove_widget(self.shutdown_button)
+        self.remove_widget(self.popup)
         
         #init dbus client
         self.bus = dbus.SessionBus()
@@ -136,6 +139,25 @@ class Switcher(Widget):
             except dbus.exceptions.DBusException, e:
                 print e
         self.switch_open=False
+    
+    def request_shutdown(self, *kwargs):
+        '''This function gets called whenever the button Shutdown gets pressed
+        in the switch. This will show a popup which ask if you are sure to
+        shutdown the machine
+        '''
+        self.popup.open()
+    
+    def shutdown(self, reboot):
+        '''This function should inform the controller to shutdown the device.
+        It calls the function shutdown() on PBController session bus.
+        '''
+        self.popup.dismiss()
+        server=self.try_reach_dbus_PBController()
+        if server:
+            try:
+                server.shutdown(reboot, dbus_interface = 'org.PB.PBController')
+            except dbus.exceptions.DBusException, e:
+                Logger.warning('Switch: DBUS Error(PBController.shutdown): '+str(e))
         
     def _show_hide_switch(self, wid, open_switch):
         '''This function opens /show and close/hides the switch.
@@ -188,11 +210,13 @@ class Switcher(Widget):
             self.remove_widget(self.close_switch_button)
             self.progs_layout.clear_widgets()
             self.remove_widget(self.pbase_button)
+            self.remove_widget(self.shutdown_button)
     
     def open_animation_step1(self, *kwargs):
         '''Internal function. Gets called as soon the open animation finshed
         '''
         self.add_widget(self.pbase_button)
+        self.add_widget(self.shutdown_button)
         
     def close_animation_step1(self, *kwargs):
         '''Internal function. Gets called as soon the close animation finshed

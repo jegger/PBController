@@ -6,6 +6,8 @@
     background_image: background_image
     progs_layout: progs_layout
     pbase_button: pbase_button
+    shutdown_button: shutdown_button
+    popup: popup
     height: 150
     y: Window.height-150
     Widget:
@@ -35,10 +37,16 @@
         on_press: root.switch_open=False
     Button:
         id: pbase_button
-        size: 100,50 
+        size: 80,50 
         text: "PBase"
-        pos: Window.width-250, root.y+50
+        pos: Window.width-210, root.y+50
         on_press: root.show_pbase()
+    Button:
+        id: shutdown_button
+        size: 100,50
+        text: 'Shutdown'
+        pos: Window.width-350, pbase_button.y
+        on_press: root.request_shutdown()
     BoxLayout:
         id: progs_layout
         orientation: 'horizontal'
@@ -47,7 +55,23 @@
         x: root.x+20
         height: 100
         width: (len(progs_layout.children)*100)+((len(progs_layout.children)-1)*20)
-
+    Popup:
+        id: popup
+        title: "Are you sure, you wanna quit PBase and all running Progs?"
+        content: popup_layout
+        size_hint: None, None
+        size: 400, 200
+        BoxLayout:
+            id: popup_layout
+            orientation: 'horizontal'
+            Button:
+                text: "Shutdown"
+                on_press: root.shutdown(False)
+            Button:
+                text: "Reboot"
+                on_press: root.shutdown(True)
+                
+                
 [ButtonItem@Button]:
     background_normal: ctx.path
     background_down: ctx.path
