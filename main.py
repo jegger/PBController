@@ -16,6 +16,7 @@ import sqlite3
 import dbus.service
 import signal
 import socket
+import logging
 from dbus.mainloop.glib import DBusGMainLoop
 #initialize thread support in gtk
 gtk.threads_init()
@@ -34,6 +35,18 @@ yourself.
 !For kwin you have to install the tool WMIface first!
 """
 
+#initialize logger
+log = logging.getLogger('PBUpdater')
+log.setLevel(logging.INFO)
+hdlr = logging.FileHandler('data/logs/log.log')
+consoleHandler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s [%(levelname)-8s] %(module)s%(lineno)-3s %(message)s")
+hdlr.setFormatter(formatter)
+consoleHandler.setFormatter(formatter)
+log.addHandler(hdlr)
+log.addHandler(consoleHandler) 
+log.info("*-----------PBController started-----------*")
+
 class Controller():
     '''This is the controller class. It will start, stop progs and receive the
     events when a prog is opened or closed. It is also handling the kwin desktop
@@ -42,7 +55,7 @@ class Controller():
     '''
     progs={}
     def __init__(self):
-        print "PBController has started"
+        log.info("PBController has started")
         #init dbus client
         self.bus = dbus.SessionBus()
             
@@ -128,7 +141,7 @@ class Controller():
         :param prog_id: prog_id of prog which should be killed/stopped
         '''
         PID=self.progs[prog_id].PID
-        print "kill prog:", PID
+        log.info("kill prog:"+str(PID))
         try:
             os.killpg(PID, signal.SIGTERM)
         except:
@@ -156,16 +169,16 @@ class Controller():
         if server: 
             try:
                 server.prog_closed(prog_id, dbus_interface = 'org.PB.PBase')
-            except dbus.exceptions.DBusException, e:
-                print "failed to connect to pbase dbus", e
+            except dbus.exceptions.DBusException:
+                log.exception('failed to connect to pbase dbus')
         try:
             server = self.bus.get_object('org.PB.PBSwitch', '/PBSwitch')
             try:
                 server.prog_closed(prog_id, dbus_interface = 'org.PB.PBSwitch')
-            except dbus.exceptions.DBusException, e:
-                print "in controller main", e
-        except Exception, e:
-            print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus exception while calling main')
+        except Exception:
+            log.exception('exception:')
         return False
     
     def prog_opening_failed(self, prog_id, reason):
@@ -173,8 +186,8 @@ class Controller():
         if server:
             try:
                 server.prog_opening_failed(prog_id, reason, dbus_interface = 'org.PB.PBase')
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus-exception')
     
     def load_pbase(self):
         '''Call over DBUS to PBase: load pbase
@@ -183,8 +196,8 @@ class Controller():
         if server: 
             try:
                 server.load(dbus_interface = 'org.PB.PBase')
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus-exception')
         return False
     
     def unload_pbase(self):
@@ -194,8 +207,8 @@ class Controller():
         if server: 
             try:
                 server.unload(dbus_interface = 'org.PB.PBase')
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus-exception')
         return False
     
     def show_pbase(self):
@@ -214,7 +227,6 @@ class Controller():
             #if kwin is not available, quit all runing progs
             for prog in self.progs:
                 if self.progs[prog].open:
-                    print prog
                     self.stop_prog(prog)
         return
     
@@ -317,7 +329,7 @@ class Controller():
         try:
             server = self.bus.get_object('org.PB.PBase', '/PBase')
         except dbus.exceptions.DBusException:
-            print "Can not reach DBUS PBase"
+            log.exception('Can not reach dbus')
             return False
         return server
     
@@ -374,7 +386,7 @@ class Prog():
         
         #receive PID from queue
         self.PID=q.get()
-        print "Prog opened with PID of:", self.PID
+        log.info("Prog opened with PID of: "+str(self.PID))
         self.open=True
         return True
     
@@ -450,7 +462,7 @@ class TUIOMultiplexer(object):
                 sin.bind((hostin,portin))
                 cont = False
             except:
-                print "TUIOMultiplexer: Port error. retry..."
+                log.error("TUIOMultiplexer: Port error. retry...in 2sec")
                 time.sleep(2)
                 cont = True
         data = 1
@@ -472,7 +484,7 @@ class TUIOMultiplexer(object):
         '''
         #get highest used port
         high=max(port for port in self.ports)
-        print "new highest port:", high+1
+        log.info("new highest port: "+str(high+1))
         #add new port that is +1 higher
         self.ports.append(high+1)
         return high+1
@@ -495,7 +507,7 @@ class TUIOMultiplexer(object):
         
         #add port
         if port not in self.active_ports:
-            print "START TUIO:", port
+            log.info("START TUIO: "+str(port))
             self.active_ports[port] = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.active_ports[port].connect(("127.0.0.1",port))
     
@@ -505,7 +517,7 @@ class TUIOMultiplexer(object):
         :param port: port to remove
         '''
         if port in self.active_ports:
-            print "STOP TUIO:", port
+            log.info("STOP TUIO: "+str(port))
             self.active_ports.pop(port)
 tuio=TUIOMultiplexer()
         

@@ -24,13 +24,25 @@ from kivy.lang import Builder
 from kivy.properties import BooleanProperty
 from kivy.animation import Animation
 from kivy.core.window import Window
-from kivy.logger import Logger
 #global
 from functools import partial
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 import sqlite3
+import logging
 #local
+
+#initialize logger
+log = logging.getLogger('Switch')
+log.setLevel(logging.INFO)
+hdlr = logging.FileHandler('data/logs/log.log')
+consoleHandler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s [%(levelname)-8s] %(module)s%(lineno)-3s %(message)s")
+hdlr.setFormatter(formatter)
+consoleHandler.setFormatter(formatter)
+log.addHandler(hdlr)
+log.addHandler(consoleHandler) 
+log.info("*-----------Switch(Controller) started-----------*")
 
 #load kv file
 Builder.load_file('switcher.kv')
@@ -71,8 +83,8 @@ class Switcher(Widget):
                 progs=server.get_open_progs(dbus_interface = 'org.PB.PBController')
                 for prog_id in progs:
                     self.open_prog_list.append(int(prog_id))
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('Exception while reaching dbus')
         
     def prog_opened(self, prog_id, *kwargs):
         '''This function gets called whenever a prog opens
@@ -111,8 +123,8 @@ class Switcher(Widget):
         if server: 
             try:
                 server.close_prog(prog_id, dbus_interface = 'org.PB.PBController')
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus close prog exception')
         self.switch_open=False
         
     def open_prog(self, prog_id, *kwargs):
@@ -123,8 +135,8 @@ class Switcher(Widget):
         if server: 
             try:
                 server.open_prog(prog_id, dbus_interface = 'org.PB.PBController')
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus open prog eception')
         self.switch_open=False
     
     def show_pbase(self, *kwargs):
@@ -136,8 +148,8 @@ class Switcher(Widget):
         if server: 
             try:
                 server.show_pbase(dbus_interface = 'org.PB.PBController')
-            except dbus.exceptions.DBusException, e:
-                print e
+            except dbus.exceptions.DBusException:
+                log.exception('dbus show pbase exception')
         self.switch_open=False
     
     def request_shutdown(self, *kwargs):
@@ -157,7 +169,7 @@ class Switcher(Widget):
             try:
                 server.shutdown(reboot, dbus_interface = 'org.PB.PBController')
             except dbus.exceptions.DBusException, e:
-                Logger.warning('Switch: DBUS Error(PBController.shutdown): '+str(e))
+                log.exception('Switch: DBUS Error(PBController.shutdown): '+str(e))
         
     def _show_hide_switch(self, wid, open_switch):
         '''This function opens /show and close/hides the switch.
@@ -232,7 +244,7 @@ class Switcher(Widget):
         try:
             server = self.bus.get_object('org.PB.PBController', '/PBController')
         except dbus.exceptions.DBusException:
-            print "Can not reach DBUS PBController"
+            log.exception('try reaching dbus failed:')
             return False
         return server
     

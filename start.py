@@ -12,7 +12,8 @@ import time
 import dbus.service
 from dbus.mainloop.glib import DBusGMainLoop
 import gtk
-import signal 
+import signal
+import logging
 gtk.gdk.threads_init()
 
 '''
@@ -48,6 +49,18 @@ You have to call the function shutdown(reboot) over DBUS.
 You can reach it under: session bus: org.PB.start (/start)
 
 '''
+
+#initialize logger
+log = logging.getLogger('Start')
+log.setLevel(logging.INFO)
+hdlr = logging.FileHandler('data/logs/log.log')
+consoleHandler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s [%(levelname)-8s] %(module)s%(lineno)-3s %(message)s")
+hdlr.setFormatter(formatter)
+consoleHandler.setFormatter(formatter)
+log.addHandler(hdlr)
+log.addHandler(consoleHandler) 
+log.info("*-----------Start(Controller) started-----------*")
 
 class Start():
     PBUpdater=True
@@ -89,7 +102,7 @@ class Start():
             
             #fetch PID fpr process
             self.script_list[index]["PID"]=pr.pid
-            print "STARTED:", self.script_list[index]["path"], self.script_list[index]["filename"], self.script_list[index]["PID"]
+            log.info("Started process: "+str(self.script_list[index]["path"])+str(self.script_list[index]["filename"])+str(self.script_list[index]["PID"]))
             
             start_time=time.time()
             #special window operations
@@ -138,7 +151,7 @@ class Start():
         for line in proc.stdout:
             window_id=line.replace("\n", "")
         if window_id==None: 
-            print "Can not find window with PID:", pid
+            log.info("Can't find window with PID:"+str(pid))
             return False
         
         #modify window with args
@@ -167,7 +180,6 @@ class Start():
         '''
         #check for wmctrl
         self.wmiface=self.cmd_exists("wmiface numberOfDesktops")
-        print self.wmiface
         #loop trough scripts
         for index, script in enumerate(self.script_list):
             t = Thread(target=self._launch, args=(script["path"], script["filename"], index))
@@ -177,10 +189,10 @@ class Start():
     def stop(self):
         '''This function kills all the running scripts.
         '''
-        print "kill all scripts"
+        log.info("kill all scripts")
         for script in self.script_list:
             script["run"]=False
-            print script["filename"], script["PID"]
+            log.info("kill script: "+str(script["filename"])+str(script["PID"]))
             if script["PID"]:
                 os.system("kill "+str(script["PID"]))
                 if script["filename"]=="switch.py":
@@ -207,7 +219,7 @@ class DBusServer(dbus.service.Object):
         
         :param reboot: Indicates if the device should reboot or shutdown
         '''
-        print "SHUTDOWN"
+        log.info("Shutdown device")
         return self.start.stop()
         
 DBusGMainLoop(set_as_default=True)
