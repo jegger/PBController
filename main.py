@@ -329,7 +329,7 @@ class Controller():
         try:
             server = self.bus.get_object('org.PB.PBase', '/PBase')
         except dbus.exceptions.DBusException:
-            log.exception('Can not reach dbus')
+            #log.exception('Can not reach dbus:')
             return False
         return server
     
@@ -372,6 +372,11 @@ class Prog():
         if hasattr(self, "process"):
             if self.process.is_alive():
                 return False
+        
+        #check if path exists
+        if not os.path.isdir("../progs/"+self.path+"/"):
+            log.error('Path not found: '+"../progs/"+self.path+"/")
+            return
             
         #make queue for passing arguments between process & this class
         q = multiprocessing.Queue()
@@ -401,7 +406,7 @@ class Prog():
         '''The function which will get transformed to the process.
         This is a internal function. Don't EVER call this function on your own! 
         call it only via start()
-        '''
+        '''        
         command=("python","main.py","-k","-p", 
                  "test:tuio,0.0.0.0:"+str(self.TUIOport),"-c",
                  "postproc:ignore:["+str(self.ignore_region)+"]")
