@@ -22,6 +22,12 @@ def install():
     #change to the PBase/PBController directory
     os.chdir(os.path.join(home, "PBase/PBController"))
     
+    #check for dev-version file
+    #if it exists, don't install!- it means that it is a developement version
+    if os.path.isfile('dev-version'):
+        print "Don't install! - dev-version file found"
+        return
+    
     #check if data directory already exist, if not create it with initial 
     if not os.path.isdir("data"):
         shutil.copytree(os.path.join(git, "data"), "data")
