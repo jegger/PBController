@@ -5,6 +5,9 @@
 .pydevproject
 .settings
 
+#komodo
+PBController.komodoproject
+
 # Packages
 *.egg
 *.egg-info

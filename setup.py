@@ -6,6 +6,7 @@
 
 import os
 import shutil
+import sys
 
 def install():
     #search pbase folder
@@ -26,6 +27,7 @@ def install():
     #if it exists, don't install!- it means that it is a developement version
     if os.path.isfile('dev-version'):
         print "Don't install! - dev-version file found"
+        sys.stderr.write('is dev-version')
         return
     
     #check if data directory already exist, if not create it with initial 
