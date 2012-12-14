@@ -226,4 +226,10 @@ DBusGMainLoop(set_as_default=True)
 st=Start()
 myservice = DBusServer(st)
 st.start()
-gtk.main()
+try:
+    gtk.main()
+except (KeyboardInterrupt, SystemExit):
+    print "-------------------------START CLOOOOSED------------------------"
+    dbus.bus.close()
+    print "bus closed"
+    sys.exit()

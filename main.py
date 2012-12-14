@@ -75,6 +75,7 @@ class Controller():
                                                                            0.9074074074,
                                                                            0.9739583333,
                                                                            0.9537037037))
+            log.info("WWWWWAAAYYA-------------------------iiiinnnn looop")
         #check if the prog is already running
         if self.progs[prog_id].open:
             self.switch_to_desktop(self.progs[prog_id].desktop)
@@ -296,8 +297,15 @@ class Controller():
         :param reboot: if rebooting after shutdown or not
         '''
         self.stop_all_progs()
-        server = self.bus.get_object('org.PB.start', '/start')
-        server.shutdown(reboot, dbus_interface = 'org.PB.start')
+        bus=dbus.SessionBus()
+        server = bus.get_object('org.PB.start', '/start')
+        print "shutdown, found object"
+        try:
+            server.shutdown(reboot, dbus_interface = 'org.PB.start')
+            print "shutdown, shutdown done"
+        except:
+            print "PBController/start.py crashed or the dbus server of it. - last hope: killall python"
+            os.system("killall python")
         return False
     
     def kwin_is_available(self):
@@ -449,7 +457,6 @@ class TUIOMultiplexer(object):
         self.add_port(3334)
         #start tuio for pbase
         self.add_port(3335)
-        
         t = Thread(target=self.__loop)
         t.start()
                 
@@ -474,11 +481,14 @@ class TUIOMultiplexer(object):
         while data and not self.stop_loop:
             data = sin.recv(1024*1024)
             copy_active_ports=self.active_ports
-            for i in copy_active_ports:
-                try:
-                    self.active_ports[i].send(data)
-                except:
-                    pass
+            try:
+                for i in copy_active_ports:
+                    try:
+                        self.active_ports[i].send(data)
+                    except:
+                        pass
+            except:
+                pass
     
     def create_new_port(self):
         '''Create a new port for a new prog.
@@ -525,7 +535,12 @@ class TUIOMultiplexer(object):
             log.info("STOP TUIO: "+str(port))
             self.active_ports.pop(port)
 tuio=TUIOMultiplexer()
-        
+
+
+def test(self):
+    log.info("TEST")
+    return [5,6]
+    
 class DBusServer(dbus.service.Object):
     '''DBus server from PBController.
     Reachable under session bus: org.PB.PBController (/PBController)
@@ -546,9 +561,36 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be opened
         '''
-        print "main controller: open prog"
-        gtk.timeout_add(1, self.controller.open_prog, prog_id)
-        print "main controller: open prog after"
+        #gtk.timeout_add(1, self.controller.open_prog, prog_id)
+        #test()
+        log.info("TESTS")
+        ##############
+        #Komisches Problem mit Prints/ logging
+        #
+        #Die vermutung liegt nahe, dass sofern der Fehler im timeout_add passiert, dass es dan zum crash kommt
+        #denn auch die log die ich schreibe werden speziell dargestellt wenn durch timeout_add aufgerufen.
+        #
+        #UPDATE1:
+        #Das Problem liegt nicht (ausschliesslich) an timeout_add. Wird nicht über start.py gestarted sondern nur
+        #dieses file, dann kann über dbus debugger das problem nicht widerhohlt werden, jedoch wenn über start.py
+        #kann es auch über dbus debugger widerhohlt werden.
+        #
+        #UPDATE2:
+        #Das Problem liegt nicht an timeout_add, da auch ein direktes loggen probleme bereitet direkt inder Funktion
+        #Das Problem wird irgdnwo beim DBUS zu suchen sein, weniger im GTKloop
+        #
+        #UPDATE3:
+        #Durch Ausführen über start.py aber ohne die anderen softwares, funtkioniert es auch. Das Problem muss von den
+        #anderen kommen
+        #
+        #UPDATE4:
+        #wenn gleichzeitig switch.py gestarted wird herst das problem
+        #
+        #UPDATE5:
+        #Der call zu get_open_progs() ist der Hinderer
+        #
+        #
+        ##############
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -558,7 +600,7 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be closed
         '''
-        gtk.timeout_add(1,self.controller.stop_prog,prog_id)
+        #gtk.timeout_add(1,self.controller.stop_prog,prog_id)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -568,27 +610,28 @@ class DBusServer(dbus.service.Object):
         
         :return prog_list: list with prog id's
         '''
-        return self.controller.get_open_progs()
+        return tester.test()
+        #return self.controller.get_open_progs()
     
     @dbus.service.method('org.PB.PBController')
     def load_pbase(self):
         '''This function will load the PBase.
         '''
-        gtk.timeout_add(1,self.controller.load_pbase)
+        #gtk.timeout_add(1,self.controller.load_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
     def unload_pbase(self):
         '''This function will unload the PBase.
         '''
-        gtk.timeout_add(1, self.controller.unload_pbase)
+        #gtk.timeout_add(1, self.controller.unload_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
     def show_pbase(self):
         '''This function will unload the PBase.
         '''
-        gtk.timeout_add(1, self.controller.show_pbase)
+        #gtk.timeout_add(1, self.controller.show_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -603,7 +646,7 @@ class DBusServer(dbus.service.Object):
      
 DBusGMainLoop(set_as_default=True)
 controller=Controller()
-myservice = DBusServer(controller)
+myservice = DBusServer(controller, tester)
 try:
     gtk.main()
 except KeyboardInterrupt:
