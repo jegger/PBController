@@ -79,13 +79,11 @@ class Switcher(Widget):
         #try to fetch open running progs
         server=self.try_reach_dbus_PBController()
         if server:
-            try:
-                progs=server.get_open_progs(dbus_interface = 'org.PB.PBController')
-                for prog_id in progs:
-                    self.open_prog_list.append(int(prog_id))
-            except dbus.exceptions.DBusException:
-                log.error('Cant reach dbus server PBController from switch')
-                #log.exception('Exception while reaching dbus')
+            progs=server.get_open_progs(dbus_interface = 'org.PB.PBController')
+            for prog_id in progs:
+                if not prog_id:
+                    return
+                self.open_prog_list.append(int(prog_id))
         
     def prog_opened(self, prog_id, *kwargs):
         '''This function gets called whenever a prog opens

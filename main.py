@@ -75,7 +75,6 @@ class Controller():
                                                                            0.9074074074,
                                                                            0.9739583333,
                                                                            0.9537037037))
-            log.info("WWWWWAAAYYA-------------------------iiiinnnn looop")
         #check if the prog is already running
         if self.progs[prog_id].open:
             self.switch_to_desktop(self.progs[prog_id].desktop)
@@ -189,7 +188,7 @@ class Controller():
                 server.prog_opening_failed(prog_id, reason, dbus_interface = 'org.PB.PBase')
             except dbus.exceptions.DBusException:
                 log.exception('dbus-exception')
-    
+     
     def load_pbase(self):
         '''Call over DBUS to PBase: load pbase
         '''
@@ -239,6 +238,7 @@ class Controller():
         prog_list=[]
         for prog in self.progs:
             if self.progs[prog].open: prog_list.append(prog)
+        if len(prog_list)==0: prog_list.append(False)
         return prog_list
     
     def get_free_desktop(self):
@@ -537,7 +537,7 @@ class TUIOMultiplexer(object):
 tuio=TUIOMultiplexer()
 
 
-def test(self):
+def test():
     log.info("TEST")
     return [5,6]
     
@@ -561,9 +561,7 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be opened
         '''
-        #gtk.timeout_add(1, self.controller.open_prog, prog_id)
-        #test()
-        log.info("TESTS")
+        gtk.timeout_add(1, self.controller.open_prog, prog_id)
         ##############
         #Komisches Problem mit Prints/ logging
         #
@@ -589,6 +587,8 @@ class DBusServer(dbus.service.Object):
         #UPDATE5:
         #Der call zu get_open_progs() ist der Hinderer
         #
+        #UPDATE6:
+        #Problem ist wegg: KEINE ahnung warum!
         #
         ##############
         return
@@ -600,7 +600,7 @@ class DBusServer(dbus.service.Object):
         
         :param prog_id: id of the prog which should be closed
         '''
-        #gtk.timeout_add(1,self.controller.stop_prog,prog_id)
+        gtk.timeout_add(1,self.controller.stop_prog,prog_id)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -610,28 +610,27 @@ class DBusServer(dbus.service.Object):
         
         :return prog_list: list with prog id's
         '''
-        return tester.test()
-        #return self.controller.get_open_progs()
+        return self.controller.get_open_progs()
     
     @dbus.service.method('org.PB.PBController')
     def load_pbase(self):
         '''This function will load the PBase.
         '''
-        #gtk.timeout_add(1,self.controller.load_pbase)
+        gtk.timeout_add(1,self.controller.load_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
     def unload_pbase(self):
         '''This function will unload the PBase.
         '''
-        #gtk.timeout_add(1, self.controller.unload_pbase)
+        gtk.timeout_add(1, self.controller.unload_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
     def show_pbase(self):
         '''This function will unload the PBase.
         '''
-        #gtk.timeout_add(1, self.controller.show_pbase)
+        gtk.timeout_add(1, self.controller.show_pbase)
         return
     
     @dbus.service.method('org.PB.PBController')
@@ -646,7 +645,7 @@ class DBusServer(dbus.service.Object):
      
 DBusGMainLoop(set_as_default=True)
 controller=Controller()
-myservice = DBusServer(controller, tester)
+myservice = DBusServer(controller)
 try:
     gtk.main()
 except KeyboardInterrupt:
