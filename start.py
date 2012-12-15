@@ -229,7 +229,4 @@ st.start()
 try:
     gtk.main()
 except (KeyboardInterrupt, SystemExit):
-    print "-------------------------START CLOOOOSED------------------------"
-    dbus.bus.close()
-    print "bus closed"
     sys.exit()
