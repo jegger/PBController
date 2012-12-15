@@ -7,6 +7,7 @@
     progs_layout: progs_layout
     pbase_button: pbase_button
     shutdown_button: shutdown_button
+    install_updates_buttons: install_updates_buttons
     popup: popup
     height: 150
     y: Window.height-150
@@ -47,6 +48,12 @@
         text: 'Shutdown'
         pos: Window.width-350, pbase_button.y
         on_press: root.request_shutdown()
+    Button:
+        id: install_updates_buttons
+        size: 100,50
+        text: 'Install updates'
+        pos: Window.width-490, pbase_button.y
+        on_press: root.install_updates()
     BoxLayout:
         id: progs_layout
         orientation: 'horizontal'

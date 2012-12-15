@@ -68,6 +68,7 @@ class Switcher(Widget):
         self.remove_widget(self.pbase_button)
         self.remove_widget(self.shutdown_button)
         self.remove_widget(self.popup)
+        self.remove_widget(self.install_updates_buttons)
         
         #init dbus client
         self.bus = dbus.SessionBus()
@@ -158,6 +159,23 @@ class Switcher(Widget):
         '''
         self.popup.open()
     
+    def request_installation(self, *kwargs):
+        '''This function displays the information for the user which should
+        decide if he is willing to install the updates
+        '''
+        if self.install_updates_buttons not in self.children:
+            self.add_widget(self.install_updates_buttons)
+    
+    def install_updates(self, *kwargs):
+        '''This function informs PBUpdater to install all softwares
+        '''
+        server=self.try_reach_dbus_PBUpdater()
+        if server:
+            try:
+                server.install_updates(dbus_interface = 'org.PB.PBUpdater')
+            except dbus.exceptions.DBusException, e:
+                log.warning('PBase: DBUS Error(PBUpdater.close_prog): '+str(e))
+                
     def shutdown(self, reboot):
         '''This function should inform the controller to shutdown the device.
         It calls the function shutdown() on PBController session bus.
@@ -247,6 +265,18 @@ class Switcher(Widget):
             return False
         return server
     
+    def try_reach_dbus_PBUpdater(self):
+        '''Int this function we try to reach the PBController via dbus.
+        
+        :return server: the server instance from dbus.
+        '''
+        try:
+            server = self.bus.get_object('org.PB.PBUpdater', '/PBUpdater')
+        except dbus.exceptions.DBusException:
+            log.exception('try reaching dbus PBupdater failed:')
+            return False
+        return server
+    
     def get_prog_info(self, prog_id):
         '''This function gets all the informations from the DB.
         
@@ -293,6 +323,13 @@ class DBusServer(dbus.service.Object):
         :param prog_id: id of prog
         '''
         Clock.schedule_once(partial(self.switch.prog_closed, prog_id), 0)
+        return
+    
+    @dbus.service.method('org.PB.PBSwitch')
+    def request_installation(self):
+        '''This function gets called when the PBUpdater requests installing updaes
+        '''
+        Clock.schedule_once(self.switch.request_installation, 0)
         return
     
 DBusGMainLoop(set_as_default=True)
