@@ -229,4 +229,5 @@ st.start()
 try:
     gtk.main()
 except (KeyboardInterrupt, SystemExit):
+    os.system("killall python")
     sys.exit()
