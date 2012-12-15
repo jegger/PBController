@@ -101,6 +101,7 @@ class Controller():
             else:
                 #if start fails: add pbase port again
                 tuio.add_port(3335)
+                self.prog_opening_failed(prog_id, "Start of Prog failed")
                 
         return False
     
@@ -384,7 +385,7 @@ class Prog():
         #check if path exists
         if not os.path.isdir("../progs/"+self.path+"/"):
             log.error('Path not found: '+"../progs/"+self.path+"/")
-            return
+            return False
             
         #make queue for passing arguments between process & this class
         q = multiprocessing.Queue()
