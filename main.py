@@ -291,19 +291,18 @@ class Controller():
             for line in proc.stdout: desktops=int(line.rstrip())
             return int(desktops)
         
-    def shutdown(self, reboot=False):
+    def shutdown(self, reaction='stop'):
         '''This function calls shutdown on start over DBUS
         This function also closes all running progs first.
         
-        :param reboot: if rebooting after shutdown or not
+        :param stop:    reboot=device reboot, stop=software stop,
+                        shutdown=device shutdown
         '''
         self.stop_all_progs()
         bus=dbus.SessionBus()
         server = bus.get_object('org.PB.start', '/start')
-        print "shutdown, found object"
         try:
-            server.shutdown(reboot, dbus_interface = 'org.PB.start')
-            print "shutdown, shutdown done"
+            server.shutdown(reaction, dbus_interface = 'org.PB.start')
         except:
             print "PBController/start.py crashed or the dbus server of it. - last hope: killall python"
             os.system("killall python")
@@ -635,13 +634,13 @@ class DBusServer(dbus.service.Object):
         return
     
     @dbus.service.method('org.PB.PBController')
-    def shutdown(self, reboot=False):
+    def shutdown(self, reaction='stop'):
         '''This function will shutdown the device or
         restart in case the argument reboot is True
         
         :param reboot: Indicates if the device should reboot or shutdown
         '''
-        gtk.timeout_add(1, self.controller.shutdown, reboot)
+        gtk.timeout_add(1, self.controller.shutdown, reaction)
         return
      
 DBusGMainLoop(set_as_default=True)

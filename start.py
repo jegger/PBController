@@ -180,14 +180,28 @@ class Start():
         '''
         #check for wmctrl
         self.wmiface=self.cmd_exists("wmiface numberOfDesktops")
+        #start scripts
+        self.start_scripts()
+        
+    def start_scripts(self):
+        '''This function starts all scripts
+        '''
+        log.info("Start all scripts")
         #loop trough scripts
         for index, script in enumerate(self.script_list):
+            script["run"]=True
             t = Thread(target=self._launch, args=(script["path"], script["filename"], index))
             t.start()
             time.sleep(0.1)
             
     def stop(self):
-        '''This function kills all the running scripts.
+        '''This function kills all the running scripts and closes the gtk main loop
+        '''
+        self.stop_scripts()
+        self.stop_gtk()
+    
+    def stop_scripts(self):
+        '''This function kills all running scripts
         '''
         log.info("kill all scripts")
         for script in self.script_list:
@@ -197,8 +211,13 @@ class Start():
                 os.system("kill "+str(script["PID"]))
                 if script["filename"]=="switch.py":
                     os.killpg(script["PID"], signal.SIGTERM)
+                    
+    def stop_gtk(self):
+        '''This function stops the gtk mainloop and ends the life of this script
+        '''
+        log.info("Stop gtk main loop in start.py")
         gtk.main_quit()
-    
+        
 class DBusServer(dbus.service.Object):
     '''DBus server from PBase.
     Reachable under session bus: org.PB.start (/start)
@@ -213,14 +232,29 @@ class DBusServer(dbus.service.Object):
         dbus.service.Object.__init__(self, bus_name, '/start')
 
     @dbus.service.method('org.PB.start')
-    def shutdown(self, reboot=False):
+    def shutdown(self, reaction='stop'):
         '''This function will shutdown the device or
         restart in case the argument reboot is True
         
-        :param reboot: Indicates if the device should reboot or shutdown
+        :param stop:    reboot=>device reboot,
+                        stop=>software stop,
+                        shutdown=>device shutdown,
+                        restart=>pbase suite restart
         '''
-        log.info("Shutdown device")
-        return self.start.stop()
+        if reaction=='stop':
+            log.info("Stop software")
+            return self.start.stop()
+        elif reaction=='reboot':
+            log.info("Reboot device")
+            return self.start.stop()
+        elif reaction=='restart':
+            log.info("Software suite restart")
+            self.start.stop_scripts()
+            time.sleep(3)
+            self.start.start()
+        else:
+            log.info("Shutdown device")
+            return self.start.stop()
         
 DBusGMainLoop(set_as_default=True)
 st=Start()
