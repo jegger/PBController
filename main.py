@@ -309,16 +309,18 @@ class Controller():
         return False
     
     def kwin_is_available(self):
-        '''This function checks if kwin is available or not by
+        '''This function checks if kwin and wmiface is available or not by
         calling the try calling its D-Bus
         
         :return bool: returns True or False
         '''
-        try: 
-            self.bus.get_object('org.kde.kwin', '/KWin')
-            self.cmd_exists("wmiface numberOfDesktops")
-            return True
-        except: 
+        if self.cmd_exists("wmiface numberOfDesktops"):
+            try: 
+                self.bus.get_object('org.kde.kwin', '/KWin')
+                return True
+            except: 
+                return False
+        else:
             return False
     
     def cmd_exists(self, cmd):
