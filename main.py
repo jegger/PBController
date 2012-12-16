@@ -316,9 +316,18 @@ class Controller():
         '''
         try: 
             self.bus.get_object('org.kde.kwin', '/KWin')
+            self.cmd_exists("wmiface numberOfDesktops")
             return True
         except: 
             return False
+    
+    def cmd_exists(self, cmd):
+        '''checks if this command exists
+        '''
+        if len(os.popen(cmd).readlines())==0:
+            return False
+        else:
+            return True
         
     def get_path_from_db(self, prog_id):
         '''This function gets the path to the prog.
